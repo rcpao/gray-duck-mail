@@ -261,6 +261,7 @@ namespace GrayDuckMail.Common
         /// <param name="body">           The body. </param>
         /// <param name="footer">         The footer. </param>
         /// <param name="discussionList"> The discussion list. </param>
+        /// <param name="contact">        The contact receiving the email. </param>
         /// <returns> A string with a processed main email template. </returns>
         public static string FillDefaultTemplate(string heading, string subheading, string body, string footer, DiscussionList discussionList, Contact contact)
         {
