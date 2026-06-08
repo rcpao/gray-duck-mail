@@ -43,6 +43,14 @@ namespace GrayDuckMail.Web
         /// <returns> The host builder configuration interface. </returns>
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
+                .ConfigureLogging(logging =>
+                {
+                    logging.ClearProviders();
+                    logging.AddConsole(options =>
+                    {
+                        options.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff ";
+                    });
+                })
                 .ConfigureServices((hostContext, services) =>
                 {
                     if (!DockerEnvironmentVariables.WebOnly)

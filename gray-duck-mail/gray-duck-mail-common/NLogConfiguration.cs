@@ -28,10 +28,12 @@ namespace GrayDuckMail.Common
             consoleTarget.UseDefaultRowHighlightingRules = true;
             fileTarget.FileName = logFilePath;
 
+            var layout = "${longdate} [${logger}] ${message}${onexception: ${exception:format=tostring}}";
+            consoleTarget.Layout = layout;
+            fileTarget.Layout = layout;
+
             configuration.AddRule(ParseLogLevel(logLevel), LogLevel.Fatal, consoleTarget);
             configuration.AddRule(ParseLogLevel(logLevel), LogLevel.Fatal, fileTarget);
-
-            consoleTarget.Layout = "[${logger}] ${message} ${exception:format=tostring}";
 
             consoleTarget.RowHighlightingRules.Add(
                 new ConsoleRowHighlightingRule()
