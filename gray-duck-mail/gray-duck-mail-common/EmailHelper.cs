@@ -209,6 +209,39 @@ namespace GrayDuckMail.Common
             return int.TryParse(value.Trim(), out var parsedInt) && parsedInt != 0;
         });
 
+        /// <summary>
+        /// Gets whether a subscribed member may post by forwarding mail whose <c>From</c> is not on
+        /// the list.
+        /// </summary>
+        /// <remarks>
+        /// Controlled by the <c>ENABLE_MEMBER_FORWARDING</c> environment variable (<c>0</c> = off,
+        /// <c>1</c> = on). When enabled, an authorized member identified by <c>Resent-From</c>,
+        /// <c>Resent-Sender</c>, or <c>Return-Path</c> may post forwarded content; the relay is
+        /// attributed to that member, not the original <c>From</c> address.
+        /// </remarks>
+        /// <value> True when member forwarding is enabled. </value>
+        public static bool EnableMemberForwarding
+        {
+            get => enableMemberForwarding.Value;
+        }
+
+        private static readonly Lazy<bool> enableMemberForwarding = new Lazy<bool>(() =>
+        {
+            var value = Environment.GetEnvironmentVariable("ENABLE_MEMBER_FORWARDING");
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            if (bool.TryParse(value.Trim(), out var parsedBool))
+            {
+                return parsedBool;
+            }
+
+            return int.TryParse(value.Trim(), out var parsedInt) && parsedInt != 0;
+        });
+
         /// <summary> Gets the default HTML email template. </summary>
         /// <remarks>
         /// <para>

@@ -375,14 +375,11 @@ namespace GrayDuckMail.Web.Worker
         {
             logger.Debug(discussionMessage.ToString());
 
-            var from = discussionMessage.Message.Sender ?? discussionMessage.Message.From.Mailboxes.SingleOrDefault();
-            var originatorSubscription = discussionList.Subscriptions
-                .Where(subscription => subscription.Contact != null
-                    && EmailHelper.EmailsMatch(subscription.Contact.Email, from?.Address))
-                .SingleOrDefault();
+            var originator = ResolveDiscussionOriginator(discussionList, discussionMessage.Message);
 
-            if (originatorSubscription != null && EmailHelper.ContactAuthorizedStatuses.Contains(originatorSubscription.Status))
+            if (originator.Subscription != null)
             {
+                var originatorSubscription = originator.Subscription;
                 var parentMessage = database.Messages.Where(message => message.EmailID.Equals(discussionMessage.Message.MessageId) || message.EmailID.Equals(discussionMessage.Message.InReplyTo)).SingleOrDefault();
                 if (parentMessage == null)
                 {
@@ -425,17 +422,178 @@ namespace GrayDuckMail.Web.Worker
             }
             else
             {
+                var from = originator.PrimaryFrom;
                 logger.Error(LanguageHelper.FormatValue(ResourceName.Logger_Format_UnrecognizedOrUnauthorized, discussionList.Name));
-                logger.Error(LanguageHelper.FormatValue(ResourceName.Logger_Format_UnrecognizedOrUnauthorizedFrom, from.Name, from.Address));
-                logger.Error(LanguageHelper.FormatValue(ResourceName.Logger_Format_UnrecognizedOrUnauthorizedEncoding, from.Encoding.EncodingName));
-                foreach (var domain in from.Route)
+                if (from != null)
                 {
-                    logger.Error(LanguageHelper.FormatValue(ResourceName.Logger_Format_UnrecognizedOrUnauthorizedDomainLine, domain));
+                    logger.Error(LanguageHelper.FormatValue(ResourceName.Logger_Format_UnrecognizedOrUnauthorizedFrom, from.Name, from.Address));
+                    logger.Error(LanguageHelper.FormatValue(ResourceName.Logger_Format_UnrecognizedOrUnauthorizedEncoding, from.Encoding.EncodingName));
+                    foreach (var domain in from.Route)
+                    {
+                        logger.Error(LanguageHelper.FormatValue(ResourceName.Logger_Format_UnrecognizedOrUnauthorizedDomainLine, domain));
+                    }
                 }
             }
 
             logger.Debug(LanguageHelper.FormatValue(ResourceName.Logger_Format_MessageProcessed, discussionMessage.Message.MessageId, discussionMessage.ServerIdentifier));
             client.DeleteMessage(discussionMessage, cancellationToken);
+        }
+
+        /// <summary> Resolves the subscribed member authorized to post a discussion message. </summary>
+        /// <param name="discussionList"> The discussion list. </param>
+        /// <param name="message">        The message. </param>
+        /// <returns> The resolution, including the primary <c>From</c> for error logging. </returns>
+        private static DiscussionOriginatorResolution ResolveDiscussionOriginator(DiscussionList discussionList, MimeMessage message)
+        {
+            var primaryFrom = GetSenderAddress(message);
+            var subscription = FindAuthorizedSubscription(discussionList, primaryFrom?.Address);
+            if (subscription != null)
+            {
+                return new DiscussionOriginatorResolution(primaryFrom, subscription, false);
+            }
+
+            if (!EmailHelper.EnableMemberForwarding)
+            {
+                return new DiscussionOriginatorResolution(primaryFrom, null, false);
+            }
+
+            foreach (var forwarderEmail in GetMemberForwardingCandidateAddresses(message, primaryFrom?.Address))
+            {
+                subscription = FindAuthorizedSubscription(discussionList, forwarderEmail);
+                if (subscription != null)
+                {
+                    logger.Debug(
+                        "Accepted forwarded discussion message from {0} on behalf of subscribed member {1}.",
+                        primaryFrom?.Address ?? "UNKNOWN",
+                        subscription.Contact.Email);
+                    return new DiscussionOriginatorResolution(primaryFrom, subscription, true);
+                }
+            }
+
+            return new DiscussionOriginatorResolution(primaryFrom, null, false);
+        }
+
+        /// <summary> Finds a subscribed contact on the list for the given email address. </summary>
+        /// <param name="discussionList"> The discussion list. </param>
+        /// <param name="email">          The email address. </param>
+        /// <returns> The subscription, if exactly one authorized match exists. </returns>
+        private static ContactSubscription FindAuthorizedSubscription(DiscussionList discussionList, string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return null;
+            }
+
+            var matches = discussionList.Subscriptions
+                .Where(subscription => subscription.Contact != null
+                    && EmailHelper.ContactAuthorizedStatuses.Contains(subscription.Status)
+                    && EmailHelper.EmailsMatch(subscription.Contact.Email, email))
+                .ToList();
+
+            return matches.Count == 1 ? matches[0] : null;
+        }
+
+        /// <summary>
+        /// Gets email addresses that may identify the member who forwarded a message to the list.
+        /// </summary>
+        /// <param name="message">       The message. </param>
+        /// <param name="primaryEmail">  The primary sender already checked. </param>
+        /// <returns> Forwarder candidate addresses. </returns>
+        private static IEnumerable<string> GetMemberForwardingCandidateAddresses(MimeMessage message, string primaryEmail)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (message.Sender != null
+                && !string.IsNullOrWhiteSpace(message.Sender.Address)
+                && seen.Add(message.Sender.Address)
+                && !EmailHelper.EmailsMatch(message.Sender.Address, primaryEmail))
+            {
+                yield return message.Sender.Address;
+            }
+
+            foreach (var mailbox in EnumerateMailboxes(message.ResentSender))
+            {
+                if (seen.Add(mailbox.Address) && !EmailHelper.EmailsMatch(mailbox.Address, primaryEmail))
+                {
+                    yield return mailbox.Address;
+                }
+            }
+
+            foreach (var mailbox in EnumerateMailboxes(message.ResentFrom))
+            {
+                if (seen.Add(mailbox.Address) && !EmailHelper.EmailsMatch(mailbox.Address, primaryEmail))
+                {
+                    yield return mailbox.Address;
+                }
+            }
+
+            var returnPath = ParseReturnPathAddress(message);
+            if (!string.IsNullOrWhiteSpace(returnPath)
+                && seen.Add(returnPath)
+                && !EmailHelper.EmailsMatch(returnPath, primaryEmail))
+            {
+                yield return returnPath;
+            }
+        }
+
+        /// <summary> Parses the <c>Return-Path</c> header value into an email address. </summary>
+        /// <param name="message"> The message. </param>
+        /// <returns> The return-path address, if one could be determined. </returns>
+        private static string ParseReturnPathAddress(MimeMessage message)
+        {
+            if (!message.Headers.TryGetValue(HeaderId.ReturnPath, out var headerValue))
+            {
+                return null;
+            }
+
+            if (MailboxAddress.TryParse(headerValue.Trim(), out var mailbox))
+            {
+                return mailbox.Address;
+            }
+
+            if (InternetAddress.TryParse(headerValue.Trim(), out var address) && address is MailboxAddress parsedMailbox)
+            {
+                return parsedMailbox.Address;
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<MailboxAddress> EnumerateMailboxes(InternetAddressList addresses)
+        {
+            if (addresses == null)
+            {
+                yield break;
+            }
+
+            foreach (var mailbox in addresses.Mailboxes)
+            {
+                yield return mailbox;
+            }
+        }
+
+        /// <summary> The authorized poster for a discussion message. </summary>
+        private readonly struct DiscussionOriginatorResolution
+        {
+            /// <summary> Initializes a new instance of the <see cref="DiscussionOriginatorResolution"/> struct. </summary>
+            /// <param name="primaryFrom">      The primary sender address. </param>
+            /// <param name="subscription">     The authorized subscription, if any. </param>
+            /// <param name="forwardedByMember"> Whether the message was accepted via member forwarding. </param>
+            public DiscussionOriginatorResolution(MailboxAddress primaryFrom, ContactSubscription subscription, bool forwardedByMember)
+            {
+                PrimaryFrom = primaryFrom;
+                Subscription = subscription;
+                ForwardedByMember = forwardedByMember;
+            }
+
+            /// <summary> Gets the primary <c>From</c> / <c>Sender</c> address. </summary>
+            public MailboxAddress PrimaryFrom { get; }
+
+            /// <summary> Gets the authorized subscription, if one was resolved. </summary>
+            public ContactSubscription Subscription { get; }
+
+            /// <summary> Gets whether the message was accepted because a member forwarded it. </summary>
+            public bool ForwardedByMember { get; }
         }
 
         /// <summary>

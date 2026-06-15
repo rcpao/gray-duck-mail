@@ -352,6 +352,17 @@ namespace GrayDuckMail.Web
             get => EmailHelper.EnableTagAddressing;
         }
 
+        /// <summary>
+        /// Gets whether a subscribed member may post forwarded mail when the original
+        /// <c>From</c> is not on the list.
+        /// </summary>
+        /// <remarks> Set <c>ENABLE_MEMBER_FORWARDING</c> to <c>1</c> to enable. Defaults to off. </remarks>
+        /// <value> True when member forwarding is enabled. </value>
+        public static bool EnableMemberForwarding
+        {
+            get => EmailHelper.EnableMemberForwarding;
+        }
+
         /// <summary> Gets the web secret. </summary>
         /// <value> The web secret. </value>
         public static string WebSecret
