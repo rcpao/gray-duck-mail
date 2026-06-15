@@ -511,12 +511,12 @@ namespace GrayDuckMail.Web.Worker
                 yield return message.Sender.Address;
             }
 
-            foreach (var mailbox in EnumerateMailboxes(message.ResentSender))
+            if (message.ResentSender != null
+                && !string.IsNullOrWhiteSpace(message.ResentSender.Address)
+                && seen.Add(message.ResentSender.Address)
+                && !EmailHelper.EmailsMatch(message.ResentSender.Address, primaryEmail))
             {
-                if (seen.Add(mailbox.Address) && !EmailHelper.EmailsMatch(mailbox.Address, primaryEmail))
-                {
-                    yield return mailbox.Address;
-                }
+                yield return message.ResentSender.Address;
             }
 
             foreach (var mailbox in EnumerateMailboxes(message.ResentFrom))
@@ -541,19 +541,30 @@ namespace GrayDuckMail.Web.Worker
         /// <returns> The return-path address, if one could be determined. </returns>
         private static string ParseReturnPathAddress(MimeMessage message)
         {
-            if (!message.Headers.TryGetValue(HeaderId.ReturnPath, out var headerValue))
+            for (int i = 0; i < message.Headers.Count; i++)
             {
+                if (!message.Headers[i].Field.Equals("Return-Path", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var headerValue = message.Headers[i].Value;
+                if (string.IsNullOrWhiteSpace(headerValue))
+                {
+                    return null;
+                }
+
+                if (MailboxAddress.TryParse(headerValue.Trim(), out var mailbox))
+                {
+                    return mailbox.Address;
+                }
+
+                if (InternetAddress.TryParse(headerValue.Trim(), out var address) && address is MailboxAddress parsedMailbox)
+                {
+                    return parsedMailbox.Address;
+                }
+
                 return null;
-            }
-
-            if (MailboxAddress.TryParse(headerValue.Trim(), out var mailbox))
-            {
-                return mailbox.Address;
-            }
-
-            if (InternetAddress.TryParse(headerValue.Trim(), out var address) && address is MailboxAddress parsedMailbox)
-            {
-                return parsedMailbox.Address;
             }
 
             return null;
