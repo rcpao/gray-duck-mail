@@ -13,6 +13,7 @@ using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 
 namespace GrayDuckMail.Common
@@ -414,6 +415,10 @@ namespace GrayDuckMail.Common
             var posterEmail = string.IsNullOrWhiteSpace(originator?.Email) ? "unknown" : originator.Email;
             var fromDisplayName = $"{posterName} via {discussionList.Name}";
 
+            var relayHeaderName = posterName;
+            var relayHeaderEmail = posterEmail;
+            var forwardedHeaders = GetForwardedMessageHeaders(message);
+
             var relay = SendEmail(discussionList,
                 recipient,
                 LanguageHelper.FormatValue(ResourceName.Mail_Format_Subject, message.Subject.Replace(LanguageHelper.FormatValue(ResourceName.Mail_Format_SubjectReplace, discussionList.Name), ""), discussionList.Name),
@@ -442,10 +447,17 @@ namespace GrayDuckMail.Common
                         }
 
                         var originatorHeader = html.CreateElement("p");
-                        originatorHeader.InnerHtml = LanguageHelper.FormatValue(
-                            ResourceName.Mail_Format_HTMLRelayOriginatorMessage,
-                            WebUtility.HtmlEncode(posterName),
-                            WebUtility.HtmlEncode(posterEmail));
+                        if (forwardedHeaders.From != null || forwardedHeaders.To.Count > 0 || forwardedHeaders.ForwardedBy.Count > 0)
+                        {
+                            originatorHeader.InnerHtml = FormatForwardedMessageHeadersHtml(forwardedHeaders);
+                        }
+                        else
+                        {
+                            originatorHeader.InnerHtml = LanguageHelper.FormatValue(
+                                ResourceName.Mail_Format_HTMLRelayOriginatorMessage,
+                                WebUtility.HtmlEncode(relayHeaderName),
+                                WebUtility.HtmlEncode(relayHeaderEmail));
+                        }
                         bodyNode.PrependChild(originatorHeader);
 
                         var techHeader = html.CreateElement("mark");
@@ -492,7 +504,9 @@ namespace GrayDuckMail.Common
                             techHeader = LanguageHelper.FormatValue(ResourceName.Mail_Format_TextUnsubscribeEmailMessage, discussionList.Name, EmailAliasHelper.GetUnsubscribeAlias(discussionList));
                         }
                         var cleanedText = message.BodyText.Replace(techHeader, "");
-                        var originatorHeader = LanguageHelper.FormatValue(ResourceName.Mail_Format_TextRelayOriginatorMessage, posterName, posterEmail);
+                        var originatorHeader = forwardedHeaders.From != null || forwardedHeaders.To.Count > 0 || forwardedHeaders.ForwardedBy.Count > 0
+                            ? FormatForwardedMessageHeadersText(forwardedHeaders)
+                            : LanguageHelper.FormatValue(ResourceName.Mail_Format_TextRelayOriginatorMessage, relayHeaderName, relayHeaderEmail);
                         var modifiedText = string.Format("{0}{1}{2}{1}{3}", originatorHeader, Environment.NewLine, cleanedText, techHeader);
 
                         return new TextPart(TextFormat.Text)
@@ -970,6 +984,318 @@ namespace GrayDuckMail.Common
             }
 
             return database.Contacts.Find(message.OriginatorContactID);
+        }
+
+        /// <summary>
+        /// Builds the original sender, recipients, and forwarding mailboxes from a MIME message.
+        /// </summary>
+        /// <param name="message">          The message. </param>
+        /// <param name="authorizedMember"> The subscribed member who forwarded the message, if known. </param>
+        /// <returns> The captured headers. </returns>
+        public static ForwardedMessageHeaders BuildForwardedMessageHeaders(MimeMessage message, Contact authorizedMember = null)
+        {
+            var headers = new ForwardedMessageHeaders();
+            if (message == null)
+            {
+                return headers;
+            }
+
+            var primaryFrom = message.From.Mailboxes.FirstOrDefault() ?? message.Sender;
+            if (primaryFrom != null && !string.IsNullOrWhiteSpace(primaryFrom.Address))
+            {
+                headers.From = CreateForwardedMailboxEntry(primaryFrom);
+            }
+
+            var recipientSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            void TryAddRecipient(MailboxAddress mailbox)
+            {
+                if (mailbox == null || string.IsNullOrWhiteSpace(mailbox.Address))
+                {
+                    return;
+                }
+
+                if (!recipientSeen.Add(mailbox.Address))
+                {
+                    return;
+                }
+
+                headers.To.Add(CreateForwardedMailboxEntry(mailbox));
+            }
+
+            foreach (var mailbox in message.To.Mailboxes)
+            {
+                TryAddRecipient(mailbox);
+            }
+
+            foreach (var mailbox in message.Cc.Mailboxes)
+            {
+                TryAddRecipient(mailbox);
+            }
+
+            if (message.ResentTo != null)
+            {
+                foreach (var mailbox in message.ResentTo.Mailboxes)
+                {
+                    TryAddRecipient(mailbox);
+                }
+            }
+
+            var forwarderSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            void TryAddForwarder(MailboxAddress mailbox)
+            {
+                if (mailbox == null || string.IsNullOrWhiteSpace(mailbox.Address))
+                {
+                    return;
+                }
+
+                if (IsTechnicalForwardingAddress(mailbox.Address))
+                {
+                    return;
+                }
+
+                if (headers.From != null && EmailsMatch(mailbox.Address, headers.From.Email))
+                {
+                    return;
+                }
+
+                if (!forwarderSeen.Add(mailbox.Address))
+                {
+                    return;
+                }
+
+                headers.ForwardedBy.Add(CreateForwardedMailboxEntry(mailbox));
+            }
+
+            if (authorizedMember != null && !string.IsNullOrWhiteSpace(authorizedMember.Email))
+            {
+                TryAddForwarder(new MailboxAddress(authorizedMember.Name, authorizedMember.Email));
+            }
+            else
+            {
+                if (message.Sender != null
+                    && (headers.From == null || !EmailsMatch(message.Sender.Address, headers.From.Email)))
+                {
+                    TryAddForwarder(message.Sender);
+                }
+
+                TryAddForwarder(message.ResentSender);
+
+                if (message.ResentFrom != null)
+                {
+                    foreach (var mailbox in message.ResentFrom.Mailboxes)
+                    {
+                        TryAddForwarder(mailbox);
+                    }
+                }
+
+                var returnPath = ParseReturnPathAddress(message);
+                if (!string.IsNullOrWhiteSpace(returnPath)
+                    && MailboxAddress.TryParse(returnPath, out var returnPathMailbox))
+                {
+                    TryAddForwarder(returnPathMailbox);
+                }
+            }
+
+            return headers;
+        }
+
+        /// <summary>
+        /// True when an address is an MUA forwarding token (e.g. Gmail <c>+caf_=</c>) rather than a
+        /// person.
+        /// </summary>
+        /// <param name="address"> The email address. </param>
+        /// <returns> True for technical forwarding addresses. </returns>
+        private static bool IsTechnicalForwardingAddress(string address)
+        {
+            if (string.IsNullOrWhiteSpace(address))
+            {
+                return true;
+            }
+
+            var atIndex = address.LastIndexOf('@');
+            var localPart = atIndex > 0 ? address.Substring(0, atIndex) : address;
+
+            return localPart.IndexOf("+caf_=", StringComparison.OrdinalIgnoreCase) >= 0
+                || localPart.IndexOf("+bf_", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        /// <summary> Serializes forwarded message headers for database storage. </summary>
+        /// <param name="headers"> The headers. </param>
+        /// <returns> JSON metadata, or null when empty. </returns>
+        public static string SerializeForwardedMessageHeaders(ForwardedMessageHeaders headers)
+        {
+            if (headers == null
+                || (headers.From == null && headers.To.Count == 0 && headers.ForwardedBy.Count == 0))
+            {
+                return null;
+            }
+
+            return JsonSerializer.Serialize(headers);
+        }
+
+        /// <summary> Parses stored forwarded message headers. </summary>
+        /// <param name="headersJson"> The stored JSON. </param>
+        /// <returns> The headers. </returns>
+        public static ForwardedMessageHeaders ParseForwardedMessageHeaders(string headersJson)
+        {
+            if (string.IsNullOrWhiteSpace(headersJson))
+            {
+                return new ForwardedMessageHeaders();
+            }
+
+            if (headersJson.TrimStart().StartsWith("[", StringComparison.Ordinal))
+            {
+                var legacyChain = JsonSerializer.Deserialize<List<ForwardedMailboxEntry>>(headersJson)
+                    ?? new List<ForwardedMailboxEntry>();
+                var legacyHeaders = new ForwardedMessageHeaders();
+                if (legacyChain.Count > 0)
+                {
+                    legacyHeaders.From = legacyChain[0];
+                    if (legacyChain.Count > 1)
+                    {
+                        legacyHeaders.ForwardedBy.AddRange(legacyChain.Skip(1));
+                    }
+                }
+
+                return legacyHeaders;
+            }
+
+            return JsonSerializer.Deserialize<ForwardedMessageHeaders>(headersJson)
+                ?? new ForwardedMessageHeaders();
+        }
+
+        /// <summary> Gets forwarded message headers for a stored message. </summary>
+        /// <param name="message"> The message. </param>
+        /// <returns> The headers. </returns>
+        private static ForwardedMessageHeaders GetForwardedMessageHeaders(Message message)
+        {
+            var headers = ParseForwardedMessageHeaders(message?.ForwardedSenderChain);
+            if (headers.From != null || headers.To.Count > 0 || headers.ForwardedBy.Count > 0)
+            {
+                return headers;
+            }
+
+            if (!string.IsNullOrWhiteSpace(message?.ForwardedOriginalSenderEmail))
+            {
+                headers.From = new ForwardedMailboxEntry
+                {
+                    Name = string.IsNullOrWhiteSpace(message.ForwardedOriginalSenderName)
+                        ? message.ForwardedOriginalSenderEmail
+                        : message.ForwardedOriginalSenderName,
+                    Email = message.ForwardedOriginalSenderEmail
+                };
+            }
+
+            return headers;
+        }
+
+        /// <summary> Formats forwarded message headers for plain-text relay bodies. </summary>
+        /// <param name="headers"> The headers. </param>
+        /// <returns> The formatted header block. </returns>
+        private static string FormatForwardedMessageHeadersText(ForwardedMessageHeaders headers)
+        {
+            var lines = new List<string>();
+            AppendForwardedHeaderLine(lines, headers.From, ResourceName.Mail_Format_TextRelayOriginatorMessage);
+
+            foreach (var recipient in headers.To)
+            {
+                AppendForwardedHeaderLine(lines, recipient, ResourceName.Mail_Format_TextRelayRecipientMessage);
+            }
+
+            foreach (var forwarder in headers.ForwardedBy)
+            {
+                AppendForwardedHeaderLine(lines, forwarder, ResourceName.Mail_Format_TextRelayForwardedByMessage);
+            }
+
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        /// <summary> Formats forwarded message headers for HTML relay bodies. </summary>
+        /// <param name="headers"> The headers. </param>
+        /// <returns> The formatted header block. </returns>
+        private static string FormatForwardedMessageHeadersHtml(ForwardedMessageHeaders headers)
+        {
+            var lines = new List<string>();
+            AppendForwardedHeaderLineHtml(lines, headers.From, ResourceName.Mail_Format_HTMLRelayOriginatorMessage);
+
+            foreach (var recipient in headers.To)
+            {
+                AppendForwardedHeaderLineHtml(lines, recipient, ResourceName.Mail_Format_HTMLRelayRecipientMessage);
+            }
+
+            foreach (var forwarder in headers.ForwardedBy)
+            {
+                AppendForwardedHeaderLineHtml(lines, forwarder, ResourceName.Mail_Format_HTMLRelayForwardedByMessage);
+            }
+
+            return string.Join("<br />", lines);
+        }
+
+        private static ForwardedMailboxEntry CreateForwardedMailboxEntry(MailboxAddress mailbox)
+        {
+            return new ForwardedMailboxEntry
+            {
+                Name = string.IsNullOrWhiteSpace(mailbox.Name) ? mailbox.Address : mailbox.Name,
+                Email = mailbox.Address
+            };
+        }
+
+        private static void AppendForwardedHeaderLine(List<string> lines, ForwardedMailboxEntry entry, ResourceName format)
+        {
+            if (entry == null)
+            {
+                return;
+            }
+
+            var name = string.IsNullOrWhiteSpace(entry.Name) ? entry.Email : entry.Name;
+            var email = string.IsNullOrWhiteSpace(entry.Email) ? "unknown" : entry.Email;
+            lines.Add(LanguageHelper.FormatValue(format, name, email));
+        }
+
+        private static void AppendForwardedHeaderLineHtml(List<string> lines, ForwardedMailboxEntry entry, ResourceName format)
+        {
+            if (entry == null)
+            {
+                return;
+            }
+
+            var name = string.IsNullOrWhiteSpace(entry.Name) ? entry.Email : entry.Name;
+            var email = string.IsNullOrWhiteSpace(entry.Email) ? "unknown" : entry.Email;
+            lines.Add(LanguageHelper.FormatValue(format, WebUtility.HtmlEncode(name), WebUtility.HtmlEncode(email)));
+        }
+
+        /// <summary> Parses the <c>Return-Path</c> header value into an email address. </summary>
+        /// <param name="message"> The message. </param>
+        /// <returns> The return-path address, if one could be determined. </returns>
+        private static string ParseReturnPathAddress(MimeMessage message)
+        {
+            for (int i = 0; i < message.Headers.Count; i++)
+            {
+                if (!message.Headers[i].Field.Equals("Return-Path", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var headerValue = message.Headers[i].Value;
+                if (string.IsNullOrWhiteSpace(headerValue))
+                {
+                    return null;
+                }
+
+                if (MailboxAddress.TryParse(headerValue.Trim(), out var mailbox))
+                {
+                    return mailbox.Address;
+                }
+
+                if (InternetAddress.TryParse(headerValue.Trim(), out var address) && address is MailboxAddress parsedMailbox)
+                {
+                    return parsedMailbox.Address;
+                }
+
+                return null;
+            }
+
+            return null;
         }
 
         #endregion

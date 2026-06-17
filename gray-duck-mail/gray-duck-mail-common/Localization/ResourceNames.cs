@@ -262,6 +262,14 @@ namespace GrayDuckMail.Common.Localization
 				Mail_Format_TextRelayOriginatorMessage,
 		/// <summary> &lt;strong&gt;From:&lt;/strong&gt; {0} &amp;lt;{1}&amp;gt; </summary>
 				Mail_Format_HTMLRelayOriginatorMessage,
+		/// <summary> Forwarded by: {0} ({1}) </summary>
+				Mail_Format_TextRelayForwardedByMessage,
+		/// <summary> To: {0} ({1}) </summary>
+				Mail_Format_TextRelayRecipientMessage,
+		/// <summary> &lt;strong&gt;Forwarded by:&lt;/strong&gt; {0} &amp;lt;{1}&amp;gt; </summary>
+				Mail_Format_HTMLRelayForwardedByMessage,
+		/// <summary> &lt;strong&gt;To:&lt;/strong&gt; {0} &amp;lt;{1}&amp;gt; </summary>
+				Mail_Format_HTMLRelayRecipientMessage,
 		/// <summary> Glad to have you. To send a message to everyone on the discussion list, just send an email to <a href='mailto:{0}'>{0}</a>. When you recieve a message from someone in the group, you can simply reply to that email and everyone on the discussion list will get a copy. </summary>
 				Mail_Format_SubscriptionConfirmationBody,
 		/// <summary> You've been subscribed to the '{0}' Email Discussion List </summary>
@@ -520,6 +528,10 @@ namespace GrayDuckMail.Common.Localization
 				View_List_Assign_InvitationsProcessing,
 		/// <summary> This user has asked to participate in the discussion list. </summary>
 				View_List_Assign_Requested,
+		/// <summary> Resend confirmation </summary>
+				View_List_Assign_ResendConfirmation,
+		/// <summary> Retry invitation </summary>
+				View_List_Assign_Retry,
 		/// <summary> Assign contacts to </summary>
 		 /// <remarks> This formatted string is manually split to avoid issues with the HTML view engine. </remarks>
 				View_List_Assign_SubheadingPart1,
@@ -528,6 +540,10 @@ namespace GrayDuckMail.Common.Localization
 				View_List_Assign_SubheadingPart2,
 		/// <summary> This user is subscribed to this discussion list. </summary>
 				View_List_Assign_Subscribed,
+		/// <summary> Click to send my posts back to me </summary>
+				View_List_Assign_EnableSelfRelay,
+		/// <summary> Click to skip sending my posts back to me </summary>
+				View_List_Assign_SuppressSelfRelay,
 		/// <summary> Discussion List Assignments </summary>
 				View_List_Assign_Title,
 		/// <summary> This user has unsubscribed from this discussion list. </summary>

@@ -1204,6 +1204,42 @@ namespace GrayDuckMail.Common.Localization {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Forwarded by: {0} ({1}).
+        /// </summary>
+        internal static string Mail_Format_TextRelayForwardedByMessage {
+            get {
+                return ResourceManager.GetString("Mail_Format_TextRelayForwardedByMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to To: {0} ({1}).
+        /// </summary>
+        internal static string Mail_Format_TextRelayRecipientMessage {
+            get {
+                return ResourceManager.GetString("Mail_Format_TextRelayRecipientMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &lt;strong&gt;Forwarded by:&lt;/strong&gt; {0} &amp;lt;{1}&amp;gt;.
+        /// </summary>
+        internal static string Mail_Format_HTMLRelayForwardedByMessage {
+            get {
+                return ResourceManager.GetString("Mail_Format_HTMLRelayForwardedByMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &lt;strong&gt;To:&lt;/strong&gt; {0} &amp;lt;{1}&amp;gt;.
+        /// </summary>
+        internal static string Mail_Format_HTMLRelayRecipientMessage {
+            get {
+                return ResourceManager.GetString("Mail_Format_HTMLRelayRecipientMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Glad to have you. To send a message to everyone on the discussion list, just send an email to &lt;a href=&apos;mailto:{0}&apos;&gt;{0}&lt;/a&gt;. When you recieve a message from someone in the group, you can simply reply to that email and everyone on the discussion list will get a copy..
         /// </summary>
         internal static string Mail_Format_SubscriptionConfirmationBody {
@@ -2257,6 +2293,24 @@ namespace GrayDuckMail.Common.Localization {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Resend confirmation.
+        /// </summary>
+        internal static string View_List_Assign_ResendConfirmation {
+            get {
+                return ResourceManager.GetString("View_List_Assign_ResendConfirmation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Retry invitation.
+        /// </summary>
+        internal static string View_List_Assign_Retry {
+            get {
+                return ResourceManager.GetString("View_List_Assign_Retry", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Assign contacts to.
         /// </summary>
         internal static string View_List_Assign_SubheadingPart1 {
@@ -2280,6 +2334,24 @@ namespace GrayDuckMail.Common.Localization {
         internal static string View_List_Assign_Subscribed {
             get {
                 return ResourceManager.GetString("View_List_Assign_Subscribed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Click to send my posts back to me.
+        /// </summary>
+        internal static string View_List_Assign_EnableSelfRelay {
+            get {
+                return ResourceManager.GetString("View_List_Assign_EnableSelfRelay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Click to skip sending my posts back to me.
+        /// </summary>
+        internal static string View_List_Assign_SuppressSelfRelay {
+            get {
+                return ResourceManager.GetString("View_List_Assign_SuppressSelfRelay", resourceCulture);
             }
         }
         

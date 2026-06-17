@@ -68,6 +68,27 @@ namespace GrayDuckMail.Common.Database
         public int OriginatorContactID { get; set; }
 
         /// <summary>
+        /// Gets or sets the display name of the original <c>From</c> when a subscribed member
+        /// forwarded the message (<see cref="ForwardedOriginalSenderEmail"/>).
+        /// </summary>
+        /// <value> The original sender name, if member forwarding applied. </value>
+        public string ForwardedOriginalSenderName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the email address of the original <c>From</c> when a subscribed member
+        /// forwarded the message.
+        /// </summary>
+        /// <value> The original sender address, if member forwarding applied. </value>
+        public string ForwardedOriginalSenderEmail { get; set; }
+
+        /// <summary>
+        /// Gets or sets a JSON array of <see cref="ForwardedMailboxEntry"/> values describing the
+        /// original sender followed by each forwarding mailbox in transmission order.
+        /// </summary>
+        /// <value> The forwarded sender chain, if member forwarding applied. </value>
+        public string ForwardedSenderChain { get; set; }
+
+        /// <summary>
         /// Gets or sets the message that this message was a response to, if it exists. If this is the
         /// first message in a chain, the parent will be <see langword="null"/>.
         /// </summary>

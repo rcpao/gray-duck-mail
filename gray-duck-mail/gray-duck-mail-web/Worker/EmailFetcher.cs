@@ -403,6 +403,19 @@ namespace GrayDuckMail.Web.Worker
                     Subject = discussionMessage.Message.Subject
                 };
 
+                if (originator.ForwardedByMember)
+                {
+                    var headers = EmailHelper.BuildForwardedMessageHeaders(
+                        discussionMessage.Message,
+                        originatorSubscription.Contact);
+                    message.ForwardedSenderChain = EmailHelper.SerializeForwardedMessageHeaders(headers);
+                    if (headers.From != null)
+                    {
+                        message.ForwardedOriginalSenderName = headers.From.Name;
+                        message.ForwardedOriginalSenderEmail = headers.From.Email;
+                    }
+                }
+
                 if (parentMessage != null)
                 {
                     message.ParentID = parentMessage.ID;
@@ -412,8 +425,7 @@ namespace GrayDuckMail.Web.Worker
                 database.Messages.Add(message);
                 
                 var listParticipants = discussionList.Subscriptions
-                        .Where(subscription => subscription.Status == SubscriptionStatus.Subscribed)
-                        .Where(subscription => subscription.ContactID != originatorSubscription.ContactID);
+                        .Where(subscription => subscription.Status == SubscriptionStatus.Subscribed);
 
                 foreach (var participant in listParticipants)
                 {

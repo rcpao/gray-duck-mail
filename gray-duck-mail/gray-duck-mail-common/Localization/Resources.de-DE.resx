@@ -499,6 +499,18 @@
   <data name="Mail_Format_HTMLRelayOriginatorMessage" xml:space="preserve">
     <value>&lt;strong&gt;From:&lt;/strong&gt; {0} &amp;lt;{1}&amp;gt;</value>
   </data>
+  <data name="Mail_Format_TextRelayForwardedByMessage" xml:space="preserve">
+    <value>Forwarded by: {0} ({1})</value>
+  </data>
+  <data name="Mail_Format_TextRelayRecipientMessage" xml:space="preserve">
+    <value>To: {0} ({1})</value>
+  </data>
+  <data name="Mail_Format_HTMLRelayForwardedByMessage" xml:space="preserve">
+    <value>&lt;strong&gt;Forwarded by:&lt;/strong&gt; {0} &amp;lt;{1}&amp;gt;</value>
+  </data>
+  <data name="Mail_Format_HTMLRelayRecipientMessage" xml:space="preserve">
+    <value>&lt;strong&gt;To:&lt;/strong&gt; {0} &amp;lt;{1}&amp;gt;</value>
+  </data>
   <data name="Mail_Format_SubscriptionConfirmationBody" xml:space="preserve">
     <value>Schön, dass Sie da sind. Um eine Nachricht an alle Mitglieder der Diskussionsliste zu senden, senden Sie einfach eine E-Mail an &lt;a href='mailto:{0}'&gt;{0}&lt;/a&gt;. Wenn Sie eine Nachricht von jemandem aus der Gruppe erhalten, können Sie einfach auf diese E-Mail antworten, und alle Mitglieder der Diskussionsliste erhalten eine Kopie.</value>
   </data>
@@ -874,6 +886,12 @@
   <data name="View_List_Assign_Requested" xml:space="preserve">
     <value>Dieser Benutzer hat um die Teilnahme an der Diskussionsliste gebeten.</value>
   </data>
+  <data name="View_List_Assign_ResendConfirmation" xml:space="preserve">
+    <value>Resend confirmation</value>
+  </data>
+  <data name="View_List_Assign_Retry" xml:space="preserve">
+    <value>Retry invitation</value>
+  </data>
   <data name="View_List_Assign_SubheadingPart1" xml:space="preserve">
     <value>Kontakte zu</value>
     <comment>This formatted string is manually split to avoid issues with the HTML view engine.</comment>
@@ -884,6 +902,12 @@
   </data>
   <data name="View_List_Assign_Subscribed" xml:space="preserve">
     <value>Dieser Benutzer ist bei dieser Diskussionsliste angemeldet.</value>
+  </data>
+  <data name="View_List_Assign_EnableSelfRelay" xml:space="preserve">
+    <value>Click to send my posts back to me</value>
+  </data>
+  <data name="View_List_Assign_SuppressSelfRelay" xml:space="preserve">
+    <value>Click to skip sending my posts back to me</value>
   </data>
   <data name="View_List_Assign_Title" xml:space="preserve">
     <value>Diskussionslisten-Zuordnungen</value>
